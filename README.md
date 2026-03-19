@@ -1,7 +1,7 @@
 ---
 author: Koren, Miklós (https://koren.dev)
 date: 2026-03-19
-version: 0.1.0
+version: 0.2.0
 title: XT2DENOISE - denoise second moments in panel event studies
 description: |
     Denoises second moments in panel event study estimates.
