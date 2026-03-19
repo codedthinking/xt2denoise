@@ -14,7 +14,7 @@ This package implements the debiasing estimator of Koren, Orbán, and Telegdy (2
 
 # Syntax
 
-- `xt2denoise` varname(numeric) [*if*], **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **weighting**(string) **cluster**(varname) **graph**]
+- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph**]
 
 The package can be installed with
 ```
@@ -25,12 +25,12 @@ net install xt2denoise, from(https://raw.githubusercontent.com/codedthinking/xt2
 ## Options
 Option | Description
 -------|------------
+**z** | Variable defining spell quality, used as a right-hand-side variable for denoising second moments.
 **treatment** | Dummy variable indicating the treatment of interest.
 **control** | Dummy variable indicating the control treatment.
 **pre** | Number of periods before treatment to include in the estimation (default 1)
 **post** | Number of periods after treatment to include in the estimation (default 3)
 **baseline** | Either a negative number between `-pre` and `-1` or `average`, or `atet`. If `-k`, the baseline is the kth period before the treatment. If `average`, the baseline is the average of the pre-treatment periods. If `atet`, the regression table reports the average of the post-treatment periods minus the average of the pre-treatment periods. Default is `-1`.
-**weighting** | Method to weight different cohorts in the estimation.
 **cluster** | Variable to cluster standard errors. If not specified, the panel identifier is used.
 **graph** (optional) | Plot the event study graph with the default settings of `hetdid_coefplot`.
 
