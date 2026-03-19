@@ -1,0 +1,6 @@
+stata.toc
+xt2denoise.pkg
+xt2denoise.ado
+xt2denoise.sthlp
+LICENSE
+CITATION.cff

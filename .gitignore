@@ -1,0 +1,22 @@
+# Poetry
+poetry.lock
+
+# Generated files
+*.zip
+smcl.lua
+*.sthlp
+*.pkg
+stata.toc
+CITATION.cff
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Stata
+*.log
+*.smcl
+
+# OS
+.DS_Store
