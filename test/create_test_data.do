@@ -14,7 +14,7 @@ local T_max = 10
 local N_changes = 50
 local sigma_z = 0.3
 local control_treated_ratio = 1
-local delta_trend = 0.01
+local delta_trend = 0.00
 
 * Generate CEO changes
 set obs `N_changes'
@@ -47,7 +47,17 @@ bysort fake_id (year): generate lnR = trend_t if _n == 1
 bysort fake_id (year): replace lnR = trend_t + `rho1' * (lnR[_n-1] - trend_t[_n-1]) + dlnR if _n > 1 & placebo == 1
 bysort fake_id (year): replace lnR = `rho0' * (lnR[_n-1] - trend_t[_n-1]) + dlnR if _n > 1 & placebo == 0
 
-* z is lnR (spell quality measured by outcome)
+* Generate spell quality dz for treated units
+generate dz_temp = rnormal(0, `sigma_z')
+* one dz per treated firm (at change_year)
+egen dz = mean(cond(year == change_year & placebo == 0, dz_temp, .)), by(fake_id)
+drop dz_temp
+
+* Treatment effect: dz affects outcome after the change for treated units
+* True effect: beta = 0 pre-treatment, beta = 1 post-treatment
+replace lnR = lnR + dz if placebo == 0 & year >= change_year
+
+* z is lnR (spell quality measured by outcome, which now includes the treatment effect)
 generate z = lnR
 
 * Measured manager skill

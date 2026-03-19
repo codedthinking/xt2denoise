@@ -35,15 +35,56 @@ Option | Description
 **graph** (optional) | Plot the event study graph with the default settings of `hetdid_coefplot`.
 
 # Examples
+
+Using simulated data with a known treatment effect (beta = 0 pre-treatment, beta = 1 post-treatment):
+
 ```
-TBD
+use "test/xt2denoise_testdata.dta", clear
+xtset fake_id year
+xt2denoise lnR, z(z) treatment(treatment) control(control) pre(3) post(3)
 ```
+
+Output:
+```
+Denoised event study relative to -1        Number of obs = 370
+
+------------------------------------------------------------------------------
+         lnR |       beta   Std. err.      z    P>|z|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+          -3 |      .0788   .0728743     1.08   0.280     -.064031    .2216309
+          -2 |   .0864862   .0636792     1.36   0.174    -.0383228    .2112951
+          -1 |          0  (omitted)
+           0 |   1.026701   .2403755     4.27   0.000     .5555735    1.497828
+           1 |   .8458092   .2522092     3.35   0.001     .3514882     1.34013
+           2 |   .8696062   .2358194     3.69   0.000     .4074088    1.331804
+           3 |   .8820123   .2475426     3.56   0.000     .3968377    1.367187
+------------------------------------------------------------------------------
+```
+
+The estimator correctly recovers the true parameters: approximately 0 in pre-treatment periods and approximately 1 in post-treatment periods.
 
 # Background
-TBD
+
+In panel event studies, second moment estimates (variances, covariances) are biased due to small-sample noise in fixed-effect estimation. This package implements a debiasing estimator that uses a placebo control group to difference out the noise component.
+
+The key insight is that the "true" variance of the quality change can be identified as:
+
+    true_Var(dz) = Var(dz | treated) - Var(dz | control)
+
+The debiased coefficient is then:
+
+    beta = (Cov(dy, dz | treated) - Cov(dy, dz | control)) / true_Var(dz)
 
 # Remarks
-TBD
+
+The command returns coefficients and standard errors in `e(b)` and `e(V)`. Additional matrices are stored:
+
+- `e(cov1)`, `e(cov0)`: Covariances for treated and control groups
+- `e(var_z1)`, `e(var_z0)`: Variance of dz for treated and control groups
+- `e(true_var_z)`: True variance of dz (difference)
+- `e(n1)`, `e(n0)`: Sample sizes by event time
+
+Standard post-estimation commands can be used, such as `coefplot`, `esttab`, or `outreg2`.
 
 # Authors
 - Miklós Koren (Central European University, https://koren.mk), *maintainer*
