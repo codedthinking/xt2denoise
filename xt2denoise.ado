@@ -88,53 +88,88 @@ quietly egen `dy_mean' = mean(`dy') if `touse', by(`eventtime' `evert')
 * demean dy
 quietly generate `dy_demean' = `dy' - `dy_mean' if `touse'
 
-***** STEP 4: For each event time, compute variance and covariance using regression
-* var(dy_demean), cov(dy_demean, dz), var(dz)
+***** STEP 4: Compute variance and covariance separately for treated and control
+* Use factor variables with eventtime + 100 to handle negative values
 * OLS of y^2 on constant gives variance estimate
 
-quietly levelsof `eventtime' if `touse' & inrange(`eventtime', -`pre', `post'), local(eventtimes)
-
-tempvar dy2 dz2 dydz
+tempvar dy2 dz2 dydz eventtime100
 quietly generate `dy2' = `dy_demean'^2 if `touse'
 quietly generate `dz2' = `dz'^2 if `touse'
 quietly generate `dydz' = `dy_demean' * `dz' if `touse'
+quietly generate `eventtime100' = `eventtime' + 100 if `touse'
 
-* store results
+* store results separately for treated (1) and control (0)
 local K = `pre' + `post' + 1
-tempname var_y cov_yz var_z se_var_y se_cov_yz se_var_z n1_vec n0_vec
+tempname cov1 cov0 var_z1 var_z0 se_cov1 se_cov0 se_var_z1 se_var_z0 n1_vec n0_vec
+tempname true_var_z beta b V
 
-matrix `var_y' = J(1, `K', .)
-matrix `cov_yz' = J(1, `K', .)
-matrix `var_z' = J(1, `K', .)
-matrix `se_var_y' = J(1, `K', .)
-matrix `se_cov_yz' = J(1, `K', .)
-matrix `se_var_z' = J(1, `K', .)
+matrix `cov1' = J(1, `K', .)
+matrix `cov0' = J(1, `K', .)
+matrix `var_z1' = J(1, `K', .)
+matrix `var_z0' = J(1, `K', .)
+matrix `se_cov1' = J(1, `K', .)
+matrix `se_cov0' = J(1, `K', .)
+matrix `se_var_z1' = J(1, `K', .)
+matrix `se_var_z0' = J(1, `K', .)
 matrix `n1_vec' = J(1, `K', .)
 matrix `n0_vec' = J(1, `K', .)
+matrix `true_var_z' = J(1, `K', .)
+matrix `beta' = J(1, `K', .)
 
-foreach e of local eventtimes {
-    local col = `e' + `pre' + 1
+* covariance for treated (evert == 1)
+quietly regress `dydz' ibn.`eventtime100' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') nocons
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    local e100 = `t' + 100
+    capture matrix `cov1'[1, `col'] = _b[`e100'.`eventtime100']
+    capture matrix `se_cov1'[1, `col'] = _se[`e100'.`eventtime100']
+}
 
-    * variance of dy_demean (regress dy^2 on constant)
-    quietly regress `dy2' if `touse' & `eventtime' == `e', cluster(`cluster')
-    matrix `var_y'[1, `col'] = _b[_cons]
-    matrix `se_var_y'[1, `col'] = _se[_cons]
+* covariance for control (everc == 1)
+quietly regress `dydz' ibn.`eventtime100' if `touse' & `everc' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') nocons
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    local e100 = `t' + 100
+    capture matrix `cov0'[1, `col'] = _b[`e100'.`eventtime100']
+    capture matrix `se_cov0'[1, `col'] = _se[`e100'.`eventtime100']
+}
 
-    * covariance of dy_demean with dz (regress dy*dz on constant)
-    quietly regress `dydz' if `touse' & `eventtime' == `e', cluster(`cluster')
-    matrix `cov_yz'[1, `col'] = _b[_cons]
-    matrix `se_cov_yz'[1, `col'] = _se[_cons]
+* variance of dz for treated
+quietly regress `dz2' ibn.`eventtime100' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') nocons
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    local e100 = `t' + 100
+    capture matrix `var_z1'[1, `col'] = _b[`e100'.`eventtime100']
+    capture matrix `se_var_z1'[1, `col'] = _se[`e100'.`eventtime100']
+}
 
-    * variance of dz (regress dz^2 on constant)
-    quietly regress `dz2' if `touse' & `eventtime' == `e', cluster(`cluster')
-    matrix `var_z'[1, `col'] = _b[_cons]
-    matrix `se_var_z'[1, `col'] = _se[_cons]
+* variance of dz for control
+quietly regress `dz2' ibn.`eventtime100' if `touse' & `everc' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') nocons
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    local e100 = `t' + 100
+    capture matrix `var_z0'[1, `col'] = _b[`e100'.`eventtime100']
+    capture matrix `se_var_z0'[1, `col'] = _se[`e100'.`eventtime100']
+}
 
-    * store sample sizes
-    quietly summarize `n1e' if `touse' & `eventtime' == `e', meanonly
-    matrix `n1_vec'[1, `col'] = r(mean)
-    quietly summarize `n0e' if `touse' & `eventtime' == `e', meanonly
-    matrix `n0_vec'[1, `col'] = r(mean)
+* count sample sizes
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    quietly count if `touse' & `eventtime' == `t' & `evert'
+    matrix `n1_vec'[1, `col'] = r(N)
+    quietly count if `touse' & `eventtime' == `t' & `everc'
+    matrix `n0_vec'[1, `col'] = r(N)
+}
+
+* compute true variance and beta
+forvalues t = -`pre'/`post' {
+    local col = `t' + `pre' + 1
+    * true variance of dz = Var(dz1) - Var(dz0)
+    matrix `true_var_z'[1, `col'] = `var_z1'[1, `col'] - `var_z0'[1, `col']
+    * beta = (Cov1 - Cov0) / true_Var(dz)
+    if `true_var_z'[1, `col'] != 0 & `true_var_z'[1, `col'] != . {
+        matrix `beta'[1, `col'] = (`cov1'[1, `col'] - `cov0'[1, `col']) / `true_var_z'[1, `col']
+    }
 }
 
 * label columns
@@ -142,37 +177,64 @@ local colnames ""
 forvalues t = -`pre'/`post' {
     local colnames `colnames' `t'
 }
-matrix colname `var_y' = `colnames'
-matrix colname `cov_yz' = `colnames'
-matrix colname `var_z' = `colnames'
+matrix colname `beta' = `colnames'
+matrix colname `cov1' = `colnames'
+matrix colname `cov0' = `colnames'
+matrix colname `var_z1' = `colnames'
+matrix colname `var_z0' = `colnames'
+matrix colname `true_var_z' = `colnames'
 matrix colname `n1_vec' = `colnames'
 matrix colname `n0_vec' = `colnames'
 
-* display results
-display
-display as text "Second moment estimates by event time"
-display as text "{hline 70}"
-display as text "Event time" _col(15) "Var(dy)" _col(30) "Cov(dy,dz)" _col(45) "Var(dz)" _col(60) "N1" _col(67) "N0"
-display as text "{hline 70}"
+***** Compute standard errors for beta using delta method
+* beta = (cov1 - cov0) / (var_z1 - var_z0)
+* SE(beta) approx = sqrt( (se_cov1^2 + se_cov0^2) / true_var_z^2 )
+tempname se_beta
+matrix `se_beta' = J(1, `K', .)
 
 forvalues t = -`pre'/`post' {
     local col = `t' + `pre' + 1
-    display as result %9.0f `t' _col(15) %9.4f `var_y'[1, `col'] _col(30) %9.4f `cov_yz'[1, `col'] _col(45) %9.4f `var_z'[1, `col'] _col(60) %5.0f `n1_vec'[1, `col'] _col(67) %5.0f `n0_vec'[1, `col']
+    if `true_var_z'[1, `col'] != 0 & `true_var_z'[1, `col'] != . {
+        matrix `se_beta'[1, `col'] = sqrt(`se_cov1'[1, `col']^2 + `se_cov0'[1, `col']^2) / abs(`true_var_z'[1, `col'])
+    }
 }
-display as text "{hline 70}"
+matrix colname `se_beta' = `colnames'
 
-* return results
-ereturn clear
-ereturn matrix var_y = `var_y'
-ereturn matrix cov_yz = `cov_yz'
-ereturn matrix var_z = `var_z'
-ereturn matrix se_var_y = `se_var_y'
-ereturn matrix se_cov_yz = `se_cov_yz'
-ereturn matrix se_var_z = `se_var_z'
-ereturn matrix n1 = `n1_vec'
-ereturn matrix n0 = `n0_vec'
+* build variance matrix (diagonal)
+matrix `V' = J(`K', `K', 0)
+forvalues i = 1/`K' {
+    if `se_beta'[1, `i'] != . {
+        matrix `V'[`i', `i'] = `se_beta'[1, `i']^2
+    }
+}
+matrix colname `V' = `colnames'
+matrix rowname `V' = `colnames'
+
+* count observations
+quietly count if `touse' & inrange(`eventtime', -`pre', `post')
+local Nobs = r(N)
+
+tempvar esample
+quietly generate `esample' = `touse' & inrange(`eventtime', -`pre', `post')
+
+* post results
+ereturn post `beta' `V', obs(`Nobs') esample(`esample')
+ereturn local depvar "`y'"
 ereturn local cmd "xt2denoise"
 ereturn local cmdline "xt2denoise `0'"
-ereturn local depvar "`y'"
+
+* store additional matrices
+ereturn matrix cov1 = `cov1'
+ereturn matrix cov0 = `cov0'
+ereturn matrix var_z1 = `var_z1'
+ereturn matrix var_z0 = `var_z0'
+ereturn matrix true_var_z = `true_var_z'
+ereturn matrix n1 = `n1_vec'
+ereturn matrix n0 = `n0_vec'
+
+* display regression table
+_coef_table_header, title(Denoised event study relative to `baseline') width(62)
+display
+_coef_table, bmat(e(b)) vmat(e(V)) level(95) depname(`y') coeftitle(beta)
 
 end
