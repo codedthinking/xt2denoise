@@ -1,4 +1,4 @@
-*! version 0.4.1 20mar2026
+*! version 0.5.0 20mar2026
 program xt2denoise, eclass
 version 18.0
 
@@ -77,15 +77,22 @@ quietly egen `dy_mean' = mean(`dy') if `touse', by(`eventtime' `evert')
 quietly generate `dy_demean' = `dy' - `dy_mean' if `touse'
 
 ***** STEP 4: Compute variance and covariance separately for treated and control
-tempvar dz_mean dz_demean dy2 dz2 dydz eventtime100 postvar
+tempvar dz_mean dz_demean dz_naive dz_naive_mean dz_naive_demean dy2 dz2 dydz dz2_naive dydz_naive eventtime100 postvar
 
-* demean dz by event time and treatment group for proper variance computation
+* demean dz by event time and treatment group for debiased estimator
 quietly egen `dz_mean' = mean(`dz') if `touse', by(`eventtime' `evert')
 quietly generate `dz_demean' = `dz' - `dz_mean' if `touse'
+
+* for naive estimator: dz = 0 for controls, demean by eventtime only (full sample)
+quietly generate `dz_naive' = `dz' * `evert' if `touse'
+quietly egen `dz_naive_mean' = mean(`dz_naive') if `touse', by(`eventtime')
+quietly generate `dz_naive_demean' = `dz_naive' - `dz_naive_mean' if `touse'
 
 quietly generate `dy2' = `dy_demean'^2 if `touse'
 quietly generate `dz2' = `dz_demean'^2 if `touse'
 quietly generate `dydz' = `dy_demean' * `dz_demean' if `touse'
+quietly generate `dz2_naive' = `dz_naive_demean'^2 if `touse'
+quietly generate `dydz_naive' = `dy_demean' * `dz_naive_demean' if `touse'
 quietly generate `eventtime100' = `eventtime' + 100 if `touse'
 quietly generate `postvar' = (`eventtime' >= 0) if `touse'
 
@@ -110,13 +117,13 @@ else {
 tempname cov1 var_z1 se_cov1 se_var_z1 V_cov1 V_var_z1
 tempname cov_diff var_z_diff se_cov_diff se_var_z_diff V_cov_diff V_var_z_diff
 
-* estimate cov1 and var_z1 for naive estimator (treated only)
-_xt2denoise_regcoef `dydz' `groupvar' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+* estimate cov1 and var_z1 for naive estimator (full sample, dz=0 for controls)
+_xt2denoise_regcoef `dydz_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `cov1' = r(coef)
 matrix `se_cov1' = r(se)
 matrix `V_cov1' = r(V)
 
-_xt2denoise_regcoef `dz2' `groupvar' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+_xt2denoise_regcoef `dz2_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `var_z1' = r(coef)
 matrix `se_var_z1' = r(se)
 matrix `V_var_z1' = r(V)
