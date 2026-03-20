@@ -1,4 +1,4 @@
-*! version 0.3.0 20mar2026
+*! version 0.3.1 20mar2026
 program xt2denoise, eclass
 version 18.0
 
@@ -103,32 +103,37 @@ else {
 }
 
 * run regressions and extract coefficients using helper program
-tempname cov1 cov0 var_z1 var_z0 se_cov1 se_cov0 se_var_z1 se_var_z0
+tempname cov1 cov0 var_z1 var_z0 se_cov1 se_cov0 se_var_z1 se_var_z0 V_cov1 V_cov0 V_var_z1 V_var_z0
 
 _xt2denoise_regcoef `dydz' `groupvar' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `cov1' = r(coef)
 matrix `se_cov1' = r(se)
+matrix `V_cov1' = r(V)
 
 _xt2denoise_regcoef `dydz' `groupvar' if `touse' & `everc' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `cov0' = r(coef)
 matrix `se_cov0' = r(se)
+matrix `V_cov0' = r(V)
 
 _xt2denoise_regcoef `dz2' `groupvar' if `touse' & `evert' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `var_z1' = r(coef)
 matrix `se_var_z1' = r(se)
+matrix `V_var_z1' = r(V)
 
 _xt2denoise_regcoef `dz2' `groupvar' if `touse' & `everc' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `var_z0' = r(coef)
 matrix `se_var_z0' = r(se)
+matrix `V_var_z0' = r(V)
 
 * compute true variance, beta, and standard errors
-tempname true_var_z beta se_beta beta_naive se_beta_naive n1_vec n0_vec
+tempname true_var_z beta se_beta V_beta beta_naive se_beta_naive n1_vec n0_vec
 
 matrix `true_var_z' = `var_z1' - `var_z0'
 
-_xt2denoise_compute_beta `cov1' `cov0' `true_var_z' `se_cov1' `se_cov0'
+_xt2denoise_compute_beta `cov1' `cov0' `true_var_z' `V_cov1' `V_cov0'
 matrix `beta' = r(beta)
 matrix `se_beta' = r(se)
+matrix `V_beta' = r(V)
 
 * naive beta = cov1 / var_z1 (no differencing)
 matrix `beta_naive' = J(1, `Kreg', 0)
@@ -141,13 +146,15 @@ forvalues i = 1/`Kreg' {
     * if var_z1 == 0, beta_naive and se stay at 0 (baseline case)
 }
 
-* for ATET: compute difference (post - pre)
+* for ATET: compute difference (post - pre) with proper covariance
 if ("`baseline'" == "atet") {
     tempname beta_atet se_atet beta_naive_atet se_naive_atet
     scalar `beta_atet' = `beta'[1, 2] - `beta'[1, 1]
-    scalar `se_atet' = sqrt(`se_beta'[1, 1]^2 + `se_beta'[1, 2]^2)
+    * SE(post - pre) = sqrt(Var(post) + Var(pre) - 2*Cov(pre, post))
+    scalar `se_atet' = sqrt(`V_beta'[1, 1] + `V_beta'[2, 2] - 2 * `V_beta'[1, 2])
     scalar `beta_naive_atet' = `beta_naive'[1, 2] - `beta_naive'[1, 1]
-    scalar `se_naive_atet' = sqrt(`se_beta_naive'[1, 1]^2 + `se_beta_naive'[1, 2]^2)
+    * naive also uses V_cov1 covariance (same regression, different sample)
+    scalar `se_naive_atet' = sqrt(`V_cov1'[1, 1] / `var_z1'[1, 1]^2 + `V_cov1'[2, 2] / `var_z1'[1, 2]^2 - 2 * `V_cov1'[1, 2] / (`var_z1'[1, 1] * `var_z1'[1, 2]))
 
     matrix `beta' = J(1, 1, `beta_atet')
     matrix `se_beta' = J(1, 1, `se_atet')
@@ -258,9 +265,10 @@ program _xt2denoise_regcoef, rclass
 
     quietly regress `depvar' ibn.`groupvar' `if', cluster(`cluster') nocons
 
-    tempname coef se
+    tempname coef se V
     matrix `coef' = J(1, `k', .)
     matrix `se' = J(1, `k', .)
+    matrix `V' = J(`k', `k', .)
 
     * check if this is ATET (k=2 with postvar) or event study
     if (`k' == 2) {
@@ -269,6 +277,11 @@ program _xt2denoise_regcoef, rclass
         capture matrix `coef'[1, 2] = _b[1.`groupvar']
         capture matrix `se'[1, 1] = _se[0.`groupvar']
         capture matrix `se'[1, 2] = _se[1.`groupvar']
+        * extract full variance-covariance matrix
+        capture matrix `V'[1, 1] = e(V)[1, 1]
+        capture matrix `V'[1, 2] = e(V)[1, 2]
+        capture matrix `V'[2, 1] = e(V)[2, 1]
+        capture matrix `V'[2, 2] = e(V)[2, 2]
     }
     else {
         * event study: groupvar is eventtime100
@@ -278,31 +291,54 @@ program _xt2denoise_regcoef, rclass
             capture matrix `coef'[1, `i'] = _b[`e100'.`groupvar']
             capture matrix `se'[1, `i'] = _se[`e100'.`groupvar']
         }
+        * extract full variance-covariance matrix
+        forvalues i = 1/`k' {
+            forvalues j = 1/`k' {
+                local ti = `i' - `pre' - 1
+                local tj = `j' - `pre' - 1
+                local e100i = `ti' + 100
+                local e100j = `tj' + 100
+                capture matrix `V'[`i', `j'] = e(V)["`e100i'.`groupvar'", "`e100j'.`groupvar'"]
+            }
+        }
     }
 
     return matrix coef = `coef'
     return matrix se = `se'
+    return matrix V = `V'
 end
 
 ***** Helper program: compute beta = (cov1 - cov0) / true_var
 program _xt2denoise_compute_beta, rclass
-    args cov1 cov0 true_var se_cov1 se_cov0
+    args cov1 cov0 true_var V_cov1 V_cov0
 
     local K = colsof(`cov1')
-    tempname beta se
+    tempname beta se V
     matrix `beta' = J(1, `K', 0)
     matrix `se' = J(1, `K', 0)
+    matrix `V' = J(`K', `K', 0)
+
+    * compute beta and full variance-covariance matrix
+    forvalues i = 1/`K' {
+        forvalues j = 1/`K' {
+            if `true_var'[1, `i'] != 0 & `true_var'[1, `i'] != . & `true_var'[1, `j'] != 0 & `true_var'[1, `j'] != . {
+                * Cov(beta[i], beta[j]) = (V_cov1[i,j] + V_cov0[i,j]) / (true_var[i] * true_var[j])
+                matrix `V'[`i', `j'] = (`V_cov1'[`i', `j'] + `V_cov0'[`i', `j']) / (`true_var'[1, `i'] * `true_var'[1, `j'])
+            }
+        }
+    }
 
     forvalues i = 1/`K' {
         if `true_var'[1, `i'] != 0 & `true_var'[1, `i'] != . {
             matrix `beta'[1, `i'] = (`cov1'[1, `i'] - `cov0'[1, `i']) / `true_var'[1, `i']
-            matrix `se'[1, `i'] = sqrt(`se_cov1'[1, `i']^2 + `se_cov0'[1, `i']^2) / abs(`true_var'[1, `i'])
+            matrix `se'[1, `i'] = sqrt(`V'[`i', `i'])
         }
         * if true_var == 0, beta and se stay at 0 (baseline case)
     }
 
     return matrix beta = `beta'
     return matrix se = `se'
+    return matrix V = `V'
 end
 
 ***** Helper program: build diagonal variance matrix from SE vector
