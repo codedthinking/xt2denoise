@@ -1,6 +1,6 @@
 ---
 author: Koren, Miklós (https://koren.dev)
-date: 2026-03-19
+date: 2026-03-20
 version: 0.3.0
 title: XT2DENOISE - denoise second moments in panel event studies
 description: |
@@ -22,7 +22,6 @@ net install xt2denoise, from(https://raw.githubusercontent.com/codedthinking/xt2
 ```
 
 # Options
-## Options
 Option | Description
 -------|------------
 **z** | Variable defining spell quality, used as a right-hand-side variable for denoising second moments.
@@ -85,7 +84,8 @@ The command returns coefficients and standard errors in `e(b)` and `e(V)`. Addit
 - `e(var_z1)`, `e(var_z0)`: Variance of dz for treated and control groups
 - `e(true_var_z)`: True variance of dz (difference)
 - `e(n1)`, `e(n0)`: Sample sizes by event time
-- `e(b_naive)`, `e(V_naive)`: Naive (biased) estimates and variance-covariance matrix (when `detail` is specified)
+- `e(b_naive)`, `e(V_naive)`: Naive (biased) estimates and variance-covariance matrix
+- `e(cov_debiased)`, `e(V_cov_debiased)`: Debiased covariance (Cov1 - Cov0) and its variance matrix
 
 Standard post-estimation commands can be used, such as `coefplot`, `esttab`, or `outreg2`.
 

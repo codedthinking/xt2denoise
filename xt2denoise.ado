@@ -1,4 +1,4 @@
-*! version 0.3.0 19mar2026
+*! version 0.3.0 20mar2026
 program xt2denoise, eclass
 version 18.0
 
