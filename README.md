@@ -14,7 +14,7 @@ This package implements the debiasing estimator of Koren, Orbán, and Telegdy (2
 
 # Syntax
 
-- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail** **cov**]
+- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail** **cov** **excessvariance**]
 
 The package can be installed with
 ```
@@ -34,6 +34,7 @@ Option | Description
 **graph** (optional) | Plot the event study graph with the default settings of `hetdid_coefplot`.
 **detail** (optional) | Display both the naive (biased) and denoised estimates. The naive estimate uses only treated group moments (Cov1/Var_z1), while the denoised estimate differences out the control group.
 **cov** (optional) | Report covariance instead of beta coefficients. When specified, displays Cov(dy, dz) for naive (Cov1) and debiased (Cov1 - Cov0) estimates. Can be abbreviated as `cov` (minimum abbreviation of `covariance`).
+**excessvariance** (optional) | Apply excess variance correction. Use when the control group has different variance than the treatment group due to compositional differences. See below for details.
 
 # Examples
 
@@ -75,6 +76,17 @@ The key insight is that the "true" variance of the quality change can be identif
 The debiased coefficient is then:
 
     beta = (Cov(dy, dz | treated) - Cov(dy, dz | control)) / true_Var(dz)
+
+## Excess variance correction
+
+The baseline debiasing method assumes that the noise variance is the same in the treatment and control groups. This holds when both groups are random samples from the same population. In practice, however, the control group may differ systematically from the treatment group. For example, if the control group consists of smaller firms, they may have higher measurement noise.
+
+The `excessvariance` option corrects for this by estimating the ratio of variances between the two groups from the pre-treatment period, when there should be no treatment effect. Let
+
+    c_z = Var(dz | treated, pre) / Var(dz | control, pre)
+    c_y = Var(dy | treated, pre) / Var(dy | control, pre)
+
+Under the assumption that variance differences are proportional (i.e., if the control group has twice the noise in z, it also has twice the noise in y), the estimator scales the control group moments by sqrt(c_z) and sqrt(c_y) before differencing. This ensures that the noise component is properly removed even when the two groups have different baseline variances.
 
 # Remarks
 
