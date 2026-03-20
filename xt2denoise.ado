@@ -2,7 +2,7 @@
 program xt2denoise, eclass
 version 18.0
 
-syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph]
+syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph detail]
 
 * read panel structure
 xtset
@@ -190,6 +190,32 @@ if ("`baseline'" == "atet") {
     matrix colname `V' = `colnames'
     matrix rowname `V' = `colnames'
 
+    * compute naive ATET = (Cov1_post / Var_z1_post) - (Cov1_pre / Var_z1_pre)
+    tempname beta_naive_pre beta_naive_post beta_naive V_naive se_naive_pre se_naive_post
+    if `var_z1'[1, 1] != 0 & `var_z1'[1, 1] != . {
+        scalar `beta_naive_pre' = `cov1'[1, 1] / `var_z1'[1, 1]
+        scalar `se_naive_pre' = `se_cov1'[1, 1] / abs(`var_z1'[1, 1])
+    }
+    else {
+        scalar `beta_naive_pre' = 0
+        scalar `se_naive_pre' = 0
+    }
+    if `var_z1'[1, 2] != 0 & `var_z1'[1, 2] != . {
+        scalar `beta_naive_post' = `cov1'[1, 2] / `var_z1'[1, 2]
+        scalar `se_naive_post' = `se_cov1'[1, 2] / abs(`var_z1'[1, 2])
+    }
+    else {
+        scalar `beta_naive_post' = .
+        scalar `se_naive_post' = .
+    }
+    matrix `beta_naive' = J(1, 1, .)
+    matrix `beta_naive'[1, 1] = `beta_naive_post' - `beta_naive_pre'
+    matrix `V_naive' = J(1, 1, .)
+    matrix `V_naive'[1, 1] = `se_naive_pre'^2 + `se_naive_post'^2
+    matrix colname `beta_naive' = `colnames'
+    matrix colname `V_naive' = `colnames'
+    matrix rowname `V_naive' = `colnames'
+
     * sample sizes
     matrix `n1_vec' = J(1, 1, .)
     matrix `n0_vec' = J(1, 1, .)
@@ -261,7 +287,7 @@ else {
         matrix `n0_vec'[1, `col'] = r(N)
     }
 
-    * compute true variance and beta
+    * compute true variance and beta (debiased)
     forvalues t = -`pre'/`post' {
         local col = `t' + `pre' + 1
         * true variance of dz = Var(dz1) - Var(dz0)
@@ -272,7 +298,21 @@ else {
         }
     }
 
+    * compute naive beta = Cov1 / Var_z1 (biased, without denoising)
+    tempname beta_naive se_beta_naive V_naive
+    matrix `beta_naive' = J(1, `K', .)
+    matrix `se_beta_naive' = J(1, `K', .)
+
+    forvalues t = -`pre'/`post' {
+        local col = `t' + `pre' + 1
+        if `var_z1'[1, `col'] != 0 & `var_z1'[1, `col'] != . {
+            matrix `beta_naive'[1, `col'] = `cov1'[1, `col'] / `var_z1'[1, `col']
+            matrix `se_beta_naive'[1, `col'] = `se_cov1'[1, `col'] / abs(`var_z1'[1, `col'])
+        }
+    }
+
     matrix colname `beta' = `colnames'
+    matrix colname `beta_naive' = `colnames'
     matrix colname `cov1' = `colnames'
     matrix colname `cov0' = `colnames'
     matrix colname `var_z1' = `colnames'
@@ -281,7 +321,7 @@ else {
     matrix colname `n1_vec' = `colnames'
     matrix colname `n0_vec' = `colnames'
 
-    ***** Compute standard errors for beta using delta method
+    ***** Compute standard errors for debiased beta using delta method
     * beta = (cov1 - cov0) / (var_z1 - var_z0)
     * SE(beta) approx = sqrt( (se_cov1^2 + se_cov0^2) / true_var_z^2 )
     tempname se_beta
@@ -294,8 +334,9 @@ else {
         }
     }
     matrix colname `se_beta' = `colnames'
+    matrix colname `se_beta_naive' = `colnames'
 
-    * build variance matrix (diagonal)
+    * build variance matrix for debiased beta (diagonal)
     matrix `V' = J(`K', `K', 0)
     forvalues i = 1/`K' {
         if `se_beta'[1, `i'] != . {
@@ -304,6 +345,16 @@ else {
     }
     matrix colname `V' = `colnames'
     matrix rowname `V' = `colnames'
+
+    * build variance matrix for naive beta (diagonal)
+    matrix `V_naive' = J(`K', `K', 0)
+    forvalues i = 1/`K' {
+        if `se_beta_naive'[1, `i'] != . {
+            matrix `V_naive'[`i', `i'] = `se_beta_naive'[1, `i']^2
+        }
+    }
+    matrix colname `V_naive' = `colnames'
+    matrix rowname `V_naive' = `colnames'
 }
 
 * count observations
@@ -328,7 +379,19 @@ ereturn matrix true_var_z = `true_var_z'
 ereturn matrix n1 = `n1_vec'
 ereturn matrix n0 = `n0_vec'
 
-* display regression table
+* store naive beta matrices
+ereturn matrix b_naive = `beta_naive'
+ereturn matrix V_naive = `V_naive'
+
+* display regression table(s)
+if ("`detail'" == "detail") {
+    * show naive (biased) beta first
+    _coef_table_header, title(Naive (biased) estimate) width(62)
+    display
+    _coef_table, bmat(e(b_naive)) vmat(e(V_naive)) level(95) depname(`y') coeftitle(beta)
+    display
+}
+
 _coef_table_header, title(Denoised event study relative to `baseline') width(62)
 display
 _coef_table, bmat(e(b)) vmat(e(V)) level(95) depname(`y') coeftitle(beta)

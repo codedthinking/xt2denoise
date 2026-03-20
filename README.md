@@ -14,7 +14,7 @@ This package implements the debiasing estimator of Koren, Orbán, and Telegdy (2
 
 # Syntax
 
-- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph**]
+- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail**]
 
 The package can be installed with
 ```
@@ -33,6 +33,7 @@ Option | Description
 **baseline** | Either a negative number between `-pre` and `-1` or `average`, or `atet`. If `-k`, the baseline is the kth period before the treatment. If `average`, the baseline is the average of the pre-treatment periods. If `atet`, the regression table reports the average of the post-treatment periods minus the average of the pre-treatment periods. Default is `-1`.
 **cluster** | Variable to cluster standard errors. If not specified, the panel identifier is used.
 **graph** (optional) | Plot the event study graph with the default settings of `hetdid_coefplot`.
+**detail** (optional) | Display both the naive (biased) and denoised estimates. The naive estimate uses only treated group moments (Cov1/Var_z1), while the denoised estimate differences out the control group.
 
 # Examples
 
@@ -83,6 +84,7 @@ The command returns coefficients and standard errors in `e(b)` and `e(V)`. Addit
 - `e(var_z1)`, `e(var_z0)`: Variance of dz for treated and control groups
 - `e(true_var_z)`: True variance of dz (difference)
 - `e(n1)`, `e(n0)`: Sample sizes by event time
+- `e(b_naive)`, `e(V_naive)`: Naive (biased) estimates and variance-covariance matrix (when `detail` is specified)
 
 Standard post-estimation commands can be used, such as `coefplot`, `esttab`, or `outreg2`.
 

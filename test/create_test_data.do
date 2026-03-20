@@ -66,8 +66,8 @@ summarize manager_skill if placebo == 0, meanonly
 replace manager_skill = manager_skill - r(mean)
 
 * Create treatment indicators
-generate byte treatment = (placebo == 0) & (year == change_year)
-generate byte control = (placebo == 1) & (year == change_year)
+generate byte treatment = (placebo == 0) & (year >= change_year)
+generate byte control = (placebo == 1) & (year >= change_year)
 
 * Keep required variables
 keep frame_id_numeric year lnR ceo_spell manager_skill change_year placebo fake_id treatment control z
