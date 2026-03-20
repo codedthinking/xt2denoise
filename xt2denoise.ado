@@ -1,8 +1,8 @@
-*! version 0.5.0 20mar2026
+*! version 0.6.0 20mar2026
 program xt2denoise, eclass
 version 18.0
 
-syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph detail COVariance]
+syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph detail COVariance EXCESSVARiance]
 
 * read panel structure
 xtset
@@ -96,6 +96,60 @@ quietly generate `dydz_naive' = `dy_demean' * `dz_naive_demean' if `touse'
 quietly generate `eventtime100' = `eventtime' + 100 if `touse'
 quietly generate `postvar' = (`eventtime' >= 0) if `touse'
 
+***** STEP 5 (optional): Estimate excess variance factors and scale control variables
+local c_z = 1
+local c_y = 1
+if ("`excessvariance'" == "excessvariance") {
+    tempvar z_dev z_dev2 y_dev2 zg
+
+    * compute z - z_g (deviation from baseline z)
+    quietly egen `zg' = mean(cond(`eventtime' == -1, `z', .)) if `touse', by(`group')
+    quietly generate `z_dev' = `z' - `zg' if `touse'
+
+    * demean by eventtime within each group (treated/control) for proper variance
+    tempvar z_dev_mean y_dev_mean2 z_dev_demean y_dev_demean2
+    quietly egen `z_dev_mean' = mean(`z_dev') if `touse' & `eventtime' < 0, by(`eventtime' `evert')
+    quietly egen `y_dev_mean2' = mean(`dy') if `touse' & `eventtime' < 0, by(`eventtime' `evert')
+    quietly generate `z_dev_demean' = `z_dev' - `z_dev_mean' if `touse' & `eventtime' < 0
+    quietly generate `y_dev_demean2' = `dy' - `y_dev_mean2' if `touse' & `eventtime' < 0
+
+    quietly generate `z_dev2' = `z_dev_demean'^2 if `touse' & `eventtime' < 0
+    quietly generate `y_dev2' = `y_dev_demean2'^2 if `touse' & `eventtime' < 0
+
+    * compute mean variance in pre-treatment for treated and control
+    quietly summarize `z_dev2' if `touse' & `eventtime' < 0 & `evert', meanonly
+    local var_z_treated = r(mean)
+    quietly summarize `z_dev2' if `touse' & `eventtime' < 0 & `everc', meanonly
+    local var_z_control = r(mean)
+
+    quietly summarize `y_dev2' if `touse' & `eventtime' < 0 & `evert', meanonly
+    local var_y_treated = r(mean)
+    quietly summarize `y_dev2' if `touse' & `eventtime' < 0 & `everc', meanonly
+    local var_y_control = r(mean)
+
+    * compute excess variance factors
+    if (`var_z_control' > 0) {
+        local c_z = `var_z_treated' / `var_z_control'
+    }
+    if (`var_y_control' > 0) {
+        local c_y = `var_y_treated' / `var_y_control'
+    }
+
+    display as text "Excess variance factors (from pre-treatment periods):"
+    display as text "  c_z (z variance ratio) = " as result %6.4f `c_z'
+    display as text "  c_y (y variance ratio) = " as result %6.4f `c_y'
+    display
+
+    * scale control variables so they have same variance as treated
+    * dy_control *= sqrt(c_y), dz_control *= sqrt(c_z)
+    quietly replace `dy_demean' = `dy_demean' * sqrt(`c_y') if `touse' & `everc'
+    quietly replace `dz_demean' = `dz_demean' * sqrt(`c_z') if `touse' & `everc'
+
+    * recompute dydz and dz2 with scaled variables
+    quietly replace `dydz' = `dy_demean' * `dz_demean' if `touse'
+    quietly replace `dz2' = `dz_demean'^2 if `touse'
+}
+
 * determine grouping variable and column names based on baseline
 if ("`baseline'" == "atet") {
     local groupvar "`postvar'"
@@ -129,6 +183,7 @@ matrix `se_var_z1' = r(se)
 matrix `V_var_z1' = r(V)
 
 * estimate differences directly using areg with interaction (all groups)
+* if excessvariance was specified, control variables are already scaled
 _xt2denoise_regdiff `dydz' `groupvar' `evert' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
 matrix `cov_diff' = r(coef)
 matrix `se_cov_diff' = r(se)
