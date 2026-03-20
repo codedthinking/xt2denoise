@@ -1,7 +1,7 @@
 ---
 author: Koren, Miklós (https://koren.dev)
 date: 2026-03-19
-version: 0.2.0
+version: 0.3.0
 title: XT2DENOISE - denoise second moments in panel event studies
 description: |
     Denoises second moments in panel event study estimates.
@@ -14,7 +14,7 @@ This package implements the debiasing estimator of Koren, Orbán, and Telegdy (2
 
 # Syntax
 
-- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail**]
+- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail** **cov**]
 
 The package can be installed with
 ```
@@ -34,6 +34,7 @@ Option | Description
 **cluster** | Variable to cluster standard errors. If not specified, the panel identifier is used.
 **graph** (optional) | Plot the event study graph with the default settings of `hetdid_coefplot`.
 **detail** (optional) | Display both the naive (biased) and denoised estimates. The naive estimate uses only treated group moments (Cov1/Var_z1), while the denoised estimate differences out the control group.
+**cov** (optional) | Report covariance instead of beta coefficients. When specified, displays Cov(dy, dz) for naive (Cov1) and debiased (Cov1 - Cov0) estimates. Can be abbreviated as `cov` (minimum abbreviation of `covariance`).
 
 # Examples
 
