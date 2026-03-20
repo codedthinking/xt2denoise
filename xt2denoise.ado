@@ -14,6 +14,7 @@ local y `varlist'
 if ("`baseline'" == "") {
     local baseline "-1"
 }
+local baseline = lower("`baseline'")
 if ("`cluster'" == "") {
     local cluster "`group'"
 }
@@ -130,13 +131,14 @@ matrix `beta' = r(beta)
 matrix `se_beta' = r(se)
 
 * naive beta = cov1 / var_z1 (no differencing)
-matrix `beta_naive' = J(1, `Kreg', .)
-matrix `se_beta_naive' = J(1, `Kreg', .)
+matrix `beta_naive' = J(1, `Kreg', 0)
+matrix `se_beta_naive' = J(1, `Kreg', 0)
 forvalues i = 1/`Kreg' {
     if `var_z1'[1, `i'] != 0 & `var_z1'[1, `i'] != . {
         matrix `beta_naive'[1, `i'] = `cov1'[1, `i'] / `var_z1'[1, `i']
         matrix `se_beta_naive'[1, `i'] = `se_cov1'[1, `i'] / abs(`var_z1'[1, `i'])
     }
+    * if var_z1 == 0, beta_naive and se stay at 0 (baseline case)
 }
 
 * for ATET: compute difference (post - pre)
@@ -288,14 +290,15 @@ program _xt2denoise_compute_beta, rclass
 
     local K = colsof(`cov1')
     tempname beta se
-    matrix `beta' = J(1, `K', .)
-    matrix `se' = J(1, `K', .)
+    matrix `beta' = J(1, `K', 0)
+    matrix `se' = J(1, `K', 0)
 
     forvalues i = 1/`K' {
         if `true_var'[1, `i'] != 0 & `true_var'[1, `i'] != . {
             matrix `beta'[1, `i'] = (`cov1'[1, `i'] - `cov0'[1, `i']) / `true_var'[1, `i']
             matrix `se'[1, `i'] = sqrt(`se_cov1'[1, `i']^2 + `se_cov0'[1, `i']^2) / abs(`true_var'[1, `i'])
         }
+        * if true_var == 0, beta and se stay at 0 (baseline case)
     }
 
     return matrix beta = `beta'
