@@ -1,4 +1,4 @@
-*! version 0.6.0 20mar2026
+*! version 0.7.0 20mar2026
 program xt2denoise, eclass
 version 18.0
 
@@ -194,13 +194,10 @@ matrix `var_z_diff' = r(coef)
 matrix `se_var_z_diff' = r(se)
 matrix `V_var_z_diff' = r(V)
 
-* compute true variance, beta, and standard errors
-tempname true_var_z beta se_beta V_beta beta_naive se_beta_naive n1_vec n0_vec
+* compute beta and standard errors
+tempname beta se_beta V_beta beta_naive se_beta_naive n1_vec n0_vec
 
-* true_var_z is now estimated directly as the difference
-matrix `true_var_z' = `var_z_diff'
-
-_xt2denoise_compute_beta `cov_diff' `true_var_z' `V_cov_diff'
+_xt2denoise_compute_beta `cov_diff' `var_z_diff' `V_cov_diff'
 matrix `beta' = r(beta)
 matrix `se_beta' = r(se)
 matrix `V_beta' = r(V)
@@ -272,7 +269,6 @@ matrix colname `se_cov1' = `colnames'
 matrix colname `se_cov_diff' = `colnames'
 matrix colname `var_z1' = `colnames'
 matrix colname `var_z_diff' = `colnames'
-matrix colname `true_var_z' = `colnames'
 matrix colname `n1_vec' = `colnames'
 matrix colname `n0_vec' = `colnames'
 matrix colname `V_cov_diff' = `colnames'
@@ -291,36 +287,26 @@ ereturn local cmd "xt2denoise"
 ereturn local cmdline "xt2denoise `0'"
 
 * store additional matrices
-ereturn matrix cov1 = `cov1'
-ereturn matrix cov_diff = `cov_diff'
-ereturn matrix se_cov1 = `se_cov1'
-ereturn matrix se_cov_diff = `se_cov_diff'
-ereturn matrix V_cov_diff = `V_cov_diff'
-ereturn matrix var_z1 = `var_z1'
-ereturn matrix var_z_diff = `var_z_diff'
-ereturn matrix true_var_z = `true_var_z'
-ereturn matrix n1 = `n1_vec'
-ereturn matrix n0 = `n0_vec'
-ereturn matrix b_naive = `beta_naive'
-ereturn matrix V_naive = `V_naive'
-
-* compute covariance matrices for display (cov_diff is already the debiased covariance)
-tempname V_cov_naive cov_debiased_copy V_cov_debiased_copy
-local Kcov = colsof(e(cov1))
+* compute V_cov_naive from se_cov1 before storing
+tempname V_cov_naive
+local Kcov = colsof(`cov1')
 matrix `V_cov_naive' = J(`Kcov', `Kcov', 0)
 forvalues i = 1/`Kcov' {
-    matrix `V_cov_naive'[`i', `i'] = e(se_cov1)[1, `i']^2
+    matrix `V_cov_naive'[`i', `i'] = `se_cov1'[1, `i']^2
 }
 matrix colname `V_cov_naive' = `colnames'
 matrix rowname `V_cov_naive' = `colnames'
 
-* copy matrices for cov_debiased (cov_diff already stored, just make aliases)
-matrix `cov_debiased_copy' = e(cov_diff)
-matrix `V_cov_debiased_copy' = e(V_cov_diff)
-
-ereturn matrix cov_debiased = `cov_debiased_copy'
-ereturn matrix V_cov_debiased = `V_cov_debiased_copy'
+ereturn matrix cov1 = `cov1'
+ereturn matrix cov_diff = `cov_diff'
 ereturn matrix V_cov_naive = `V_cov_naive'
+ereturn matrix V_cov_diff = `V_cov_diff'
+ereturn matrix var_z1 = `var_z1'
+ereturn matrix var_z_diff = `var_z_diff'
+ereturn matrix n1 = `n1_vec'
+ereturn matrix n0 = `n0_vec'
+ereturn matrix b_naive = `beta_naive'
+ereturn matrix V_naive = `V_naive'
 
 * display results
 _xt2denoise_display, baseline(`baseline') depvar(`y') `detail' `covariance'
@@ -489,7 +475,7 @@ program _xt2denoise_display
     if ("`covariance'" == "covariance") {
         _coef_table_header, title(Debiased covariance (Cov1 - Cov0) relative to `baseline') width(62)
         display
-        _coef_table, bmat(e(cov_debiased)) vmat(e(V_cov_debiased)) level(95) depname(`depvar') coeftitle(cov)
+        _coef_table, bmat(e(cov_diff)) vmat(e(V_cov_diff)) level(95) depname(`depvar') coeftitle(cov)
     }
     else {
         _coef_table_header, title(Denoised event study relative to `baseline') width(62)

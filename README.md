@@ -1,7 +1,7 @@
 ---
 author: Koren, Miklós (https://koren.dev)
 date: 2026-03-20
-version: 0.6.0
+version: 0.7.0
 title: XT2DENOISE - denoise second moments in panel event studies
 description: |
     Denoises second moments in panel event study estimates.
@@ -92,12 +92,11 @@ Under the assumption that variance differences are proportional (i.e., if the co
 
 The command returns coefficients and standard errors in `e(b)` and `e(V)`. Additional matrices are stored:
 
-- `e(cov1)`, `e(cov0)`: Covariances for treated and control groups
-- `e(var_z1)`, `e(var_z0)`: Variance of dz for treated and control groups
-- `e(true_var_z)`: True variance of dz (difference)
-- `e(n1)`, `e(n0)`: Sample sizes by event time
 - `e(b_naive)`, `e(V_naive)`: Naive (biased) estimates and variance-covariance matrix
-- `e(cov_debiased)`, `e(V_cov_debiased)`: Debiased covariance (Cov1 - Cov0) and its variance matrix
+- `e(cov1)`, `e(V_cov_naive)`: Naive covariance and its variance matrix
+- `e(cov_diff)`, `e(V_cov_diff)`: Debiased covariance (Cov1 - Cov0) and its variance matrix
+- `e(var_z1)`, `e(var_z_diff)`: Variance of dz (naive and differenced)
+- `e(n1)`, `e(n0)`: Sample sizes by event time
 
 Standard post-estimation commands can be used, such as `coefplot`, `esttab`, or `outreg2`.
 
