@@ -4,10 +4,6 @@ poetry.lock
 # Generated files
 *.zip
 smcl.lua
-*.sthlp
-*.pkg
-stata.toc
-CITATION.cff
 
 # Python
 __pycache__/
