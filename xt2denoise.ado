@@ -1,4 +1,4 @@
-*! version 0.8.0 27apr2026
+*! version 0.9.0 27apr2026
 program xt2denoise, eclass
 version 18.0
 
@@ -183,7 +183,7 @@ else {
 }
 
 * run regressions and extract coefficients using helper program
-tempname cov1 var_z1 se_cov1 se_var_z1 V_cov1 V_var_z1
+tempname cov1 var_z1 se_cov1 se_var_z1 V_cov1 V_var_z1 var_y1
 tempname cov_diff var_z_diff se_cov_diff se_var_z_diff V_cov_diff V_var_z_diff
 
 * estimate cov1 and var_z1 for naive estimator (full sample, dz=0 for controls)
@@ -245,6 +245,7 @@ if ("`baseline'" == "atet") {
 }
 
 * count sample sizes
+* FIXME: check if naive sample size includes controls with dz=0 when includenonchangers is specified
 matrix `n1_vec' = J(1, `K', .)
 matrix `n0_vec' = J(1, `K', .)
 if ("`baseline'" == "atet") {
@@ -306,11 +307,15 @@ ereturn local cmdline "xt2denoise `0'"
 tempname V_cov_naive
 local Kcov = colsof(`cov1')
 matrix `V_cov_naive' = J(`Kcov', `Kcov', 0)
+matrix `var_y1' = J(1, `Kcov', .)
 forvalues i = 1/`Kcov' {
     matrix `V_cov_naive'[`i', `i'] = `se_cov1'[1, `i']^2
+    summarize `dy2' if `touse' & `eventtime' == `i' - `pre' - 1 & `evert', meanonly
+    matrix `var_y1'[1, `i'] = r(mean)
 }
 matrix colname `V_cov_naive' = `colnames'
 matrix rowname `V_cov_naive' = `colnames'
+matrix colname `var_y1' = `colnames'
 
 ereturn matrix cov1 = `cov1'
 ereturn matrix cov_diff = `cov_diff'
@@ -318,6 +323,7 @@ ereturn matrix V_cov_naive = `V_cov_naive'
 ereturn matrix V_cov_diff = `V_cov_diff'
 ereturn matrix var_z1 = `var_z1'
 ereturn matrix var_z_diff = `var_z_diff'
+ereturn matrix var_y1 = `var_y1'
 ereturn matrix n1 = `n1_vec'
 ereturn matrix n0 = `n0_vec'
 ereturn matrix b_naive = `beta_naive'

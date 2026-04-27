@@ -103,6 +103,7 @@ c_y = Var(dy | treated, pre) / Var(dy | control, pre)
 {phang2}{cmd:e(cov1)}, {cmd:e(V_cov_naive)}: Naive covariance and its variance matrix{p_end}
 {phang2}{cmd:e(cov_diff)}, {cmd:e(V_cov_diff)}: Debiased covariance (Cov1 - Cov0) and its variance matrix{p_end}
 {phang2}{cmd:e(var_z1)}, {cmd:e(var_z_diff)}: Variance of dz (naive and differenced){p_end}
+{phang2}{cmd:e(var_y1)}: Variance of dy for the treated group by event time{p_end}
 {phang2}{cmd:e(n1)}, {cmd:e(n0)}: Sample sizes by event time{p_end}
 
 
