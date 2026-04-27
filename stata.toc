@@ -1,0 +1,5 @@
+
+v 3
+d Koren, Miklós (https://koren.dev)
+d https://github.com/codedthinking/xt2denoise
+p xt2denoise XT2DENOISE - denoise second moments in panel event studies

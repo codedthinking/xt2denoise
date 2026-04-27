@@ -1,0 +1,25 @@
+
+v 3
+
+d XT2DENOISE - denoise second moments in panel event studies
+d
+d Authors: Koren, Miklós (https://koren.dev)
+d Support:
+d 
+d Denoises second moments in panel event study estimates.
+d 
+d For details, see website:
+d https://github.com/codedthinking/xt2denoise
+d
+d Requires: Stata version 18
+d
+d Distribution-Date: 20260427
+d
+
+
+f stata.toc
+f xt2denoise.pkg
+f xt2denoise.ado
+f xt2denoise.sthlp
+f LICENSE
+f CITATION.cff
