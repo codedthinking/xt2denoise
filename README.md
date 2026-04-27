@@ -1,7 +1,7 @@
 ---
 author: Koren, Miklós (https://koren.dev)
-date: 2026-03-20
-version: 0.7.1
+date: 2026-04-27
+version: 0.8.0
 title: XT2DENOISE - denoise second moments in panel event studies
 description: |
     Denoises second moments in panel event study estimates.
@@ -14,7 +14,7 @@ This package implements the debiasing estimator of Koren, Orbán, and Telegdy (2
 
 # Syntax
 
-- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail** **cov** **excessvariance**]
+- `xt2denoise` varname(numeric) [*if*], **z**(varname numeric) **treatment**(varname numeric) **control**(varname numeric), [**pre**(#) **post**(#) **baseline**(*string*) **cluster**(varname) **graph** **detail** **cov** **excessvariance** **includenonchangers**]
 
 The package can be installed with
 ```
@@ -35,6 +35,7 @@ Option | Description
 **detail** (optional) | Display both the naive (biased) and denoised estimates. The naive estimate uses only treated group moments (Cov1/Var_z1), while the denoised estimate differences out the control group.
 **cov** (optional) | Report covariance instead of beta coefficients. When specified, displays Cov(dy, dz) for naive (Cov1) and debiased (Cov1 - Cov0) estimates. Can be abbreviated as `cov` (minimum abbreviation of `covariance`).
 **excessvariance** (optional) | Apply excess variance correction. Use when the control group has different variance than the treatment group due to compositional differences. See below for details.
+**includenonchangers** (optional) | Include control group observations (with dz=0) in the naive estimator. By default, the naive estimator uses only treated observations. This option restores the old behavior of including controls with zero change in the naive variance and covariance calculations.
 
 # Examples
 

@@ -1,8 +1,8 @@
-*! version 0.7.1 20mar2026
+*! version 0.8.0 27apr2026
 program xt2denoise, eclass
 version 18.0
 
-syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph detail COVariance EXCESSVARiance]
+syntax varname(numeric) [if], z(varname numeric) treatment(varname numeric) control(varname numeric) [, pre(integer 1) post(integer 3) baseline(string) cluster(varname) graph detail COVariance EXCESSVARiance includenonchangers]
 
 * read panel structure
 xtset
@@ -18,6 +18,13 @@ local baseline = lower("`baseline'")
 if ("`cluster'" == "") {
     local cluster "`group'"
 }
+if ("`includenonchangers'" == "") {
+    local includenonchangers 0
+}
+else {
+    local includenonchangers 1
+}
+
 
 marksample touse
 
@@ -85,8 +92,14 @@ tempvar dz_mean dz_demean dz_naive dz_naive_mean dz_naive_demean dy2 dz2 dydz dz
 quietly egen `dz_mean' = mean(`dz') if `touse', by(`eventtime' `evert')
 quietly generate `dz_demean' = `dz' - `dz_mean' if `touse'
 
+* if (includenonchangers), keep all observations for naive estimator (dz=0 for controls)
 * for naive estimator: dz = 0 for controls, demean by eventtime only (full sample)
-quietly generate `dz_naive' = `dz' * `evert' if `touse'
+if (`includenonchangers') {
+    quietly generate `dz_naive' = `dz' * `evert' if `touse'
+}
+else {
+    quietly generate `dz_naive' = `dz' if `touse' & `evert'
+}
 quietly egen `dz_naive_mean' = mean(`dz_naive') if `touse', by(`eventtime')
 quietly generate `dz_naive_demean' = `dz_naive' - `dz_naive_mean' if `touse'
 
