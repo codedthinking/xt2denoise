@@ -1,4 +1,4 @@
-*! version 0.7.0 20mar2026
+*! version 0.7.1 20mar2026
 program xt2denoise, eclass
 version 18.0
 
@@ -74,7 +74,9 @@ quietly generate `dy' = `y' - `yg' if `touse'
 tempvar dy_mean dy_demean
 
 quietly egen `dy_mean' = mean(`dy') if `touse', by(`eventtime' `evert')
+quietly egen `dy_naive_mean' = mean(`dy') if `touse', by(`eventtime')
 quietly generate `dy_demean' = `dy' - `dy_mean' if `touse'
+quietly generate `dy_naive_demean' = `dy' - `dy_naive_mean' if `touse'
 
 ***** STEP 4: Compute variance and covariance separately for treated and control
 tempvar dz_mean dz_demean dz_naive dz_naive_mean dz_naive_demean dy2 dz2 dydz dz2_naive dydz_naive eventtime100 postvar
@@ -92,7 +94,7 @@ quietly generate `dy2' = `dy_demean'^2 if `touse'
 quietly generate `dz2' = `dz_demean'^2 if `touse'
 quietly generate `dydz' = `dy_demean' * `dz_demean' if `touse'
 quietly generate `dz2_naive' = `dz_naive_demean'^2 if `touse'
-quietly generate `dydz_naive' = `dy_demean' * `dz_naive_demean' if `touse'
+quietly generate `dydz_naive' = `dy_naive_demean' * `dz_naive_demean' if `touse'
 quietly generate `eventtime100' = `eventtime' + 100 if `touse'
 quietly generate `postvar' = (`eventtime' >= 0) if `touse'
 
