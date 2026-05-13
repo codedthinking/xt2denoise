@@ -1,4 +1,4 @@
-*! version 0.9.1 13may2026
+*! version 0.9.2 13may2026
 program xt2denoise, eclass
 version 18.0
 
@@ -74,7 +74,12 @@ quietly generate `dz' = `z_after' - `z_before' if `touse'
 ***** STEP 2: Compute yt - yg to remove group fixed effect
 tempvar yg dy
 
-quietly egen `yg' = mean(cond(`eventtime' == -1, `y', .)) if `touse', by(`group')
+if ("`baseline'" == "average" | "`baseline'" == "atet") {
+    quietly egen `yg' = mean(cond(inrange(`eventtime', -`pre', -1), `y', .)) if `touse', by(`group')
+}
+else {
+    quietly egen `yg' = mean(cond(`eventtime' == -1, `y', .)) if `touse', by(`group')
+}
 quietly generate `dy' = `y' - `yg' if `touse'
 
 ***** STEP 3: Remove event time X treatment group specific mean from dy
@@ -118,7 +123,12 @@ if ("`excessvariance'" == "excessvariance") {
     tempvar z_dev z_dev2 y_dev2 zg
 
     * compute z - z_g (deviation from baseline z)
-    quietly egen `zg' = mean(cond(`eventtime' == -1, `z', .)) if `touse', by(`group')
+    if ("`baseline'" == "average" | "`baseline'" == "atet") {
+        quietly egen `zg' = mean(cond(inrange(`eventtime', -`pre', -1), `z', .)) if `touse', by(`group')
+    }
+    else {
+        quietly egen `zg' = mean(cond(`eventtime' == -1, `z', .)) if `touse', by(`group')
+    }
     quietly generate `z_dev' = `z' - `zg' if `touse'
 
     * demean by eventtime within each group (treated/control) for proper variance
@@ -170,12 +180,10 @@ if ("`baseline'" == "atet") {
     local groupvar "`postvar'"
     local K = 1
     local colnames "ATET"
-    local Kreg = 2
 }
 else {
     local groupvar "`eventtime100'"
     local K = `pre' + `post' + 1
-    local Kreg = `K'
     local colnames ""
     forvalues t = -`pre'/`post' {
         local colnames `colnames' `t'
@@ -187,24 +195,24 @@ tempname cov1 var_z1 se_cov1 se_var_z1 V_cov1 V_var_z1 var_y1
 tempname cov_diff var_z_diff se_cov_diff se_var_z_diff V_cov_diff V_var_z_diff
 
 * estimate cov1 and var_z1 for naive estimator (full sample, dz=0 for controls)
-_xt2denoise_regcoef `dydz_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+_xt2denoise_regcoef `dydz_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`K') pre(`pre')
 matrix `cov1' = r(coef)
 matrix `se_cov1' = r(se)
 matrix `V_cov1' = r(V)
 
-_xt2denoise_regcoef `dz2_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+_xt2denoise_regcoef `dz2_naive' `groupvar' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`K') pre(`pre')
 matrix `var_z1' = r(coef)
 matrix `se_var_z1' = r(se)
 matrix `V_var_z1' = r(V)
 
 * estimate differences directly using areg with interaction (all groups)
 * if excessvariance was specified, control variables are already scaled
-_xt2denoise_regdiff `dydz' `groupvar' `evert' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+_xt2denoise_regdiff `dydz' `groupvar' `evert' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`K') pre(`pre')
 matrix `cov_diff' = r(coef)
 matrix `se_cov_diff' = r(se)
 matrix `V_cov_diff' = r(V)
 
-_xt2denoise_regdiff `dz2' `groupvar' `evert' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`Kreg') pre(`pre')
+_xt2denoise_regdiff `dz2' `groupvar' `evert' if `touse' & inrange(`eventtime', -`pre', `post'), cluster(`cluster') k(`K') pre(`pre')
 matrix `var_z_diff' = r(coef)
 matrix `se_var_z_diff' = r(se)
 matrix `V_var_z_diff' = r(V)
@@ -218,30 +226,14 @@ matrix `se_beta' = r(se)
 matrix `V_beta' = r(V)
 
 * naive beta = cov1 / var_z1 (no differencing)
-matrix `beta_naive' = J(1, `Kreg', 0)
-matrix `se_beta_naive' = J(1, `Kreg', 0)
-forvalues i = 1/`Kreg' {
+matrix `beta_naive' = J(1, `K', 0)
+matrix `se_beta_naive' = J(1, `K', 0)
+forvalues i = 1/`K' {
     if `var_z1'[1, `i'] != 0 & `var_z1'[1, `i'] != . {
         matrix `beta_naive'[1, `i'] = `cov1'[1, `i'] / `var_z1'[1, `i']
         matrix `se_beta_naive'[1, `i'] = `se_cov1'[1, `i'] / abs(`var_z1'[1, `i'])
     }
     * if var_z1 == 0, beta_naive and se stay at 0 (baseline case)
-}
-
-* for ATET: compute difference (post - pre) with proper covariance
-if ("`baseline'" == "atet") {
-    tempname beta_atet se_atet beta_naive_atet se_naive_atet
-    scalar `beta_atet' = `beta'[1, 2] - `beta'[1, 1]
-    * SE(post - pre) = sqrt(Var(post) + Var(pre) - 2*Cov(pre, post))
-    scalar `se_atet' = sqrt(`V_beta'[1, 1] + `V_beta'[2, 2] - 2 * `V_beta'[1, 2])
-    scalar `beta_naive_atet' = `beta_naive'[1, 2] - `beta_naive'[1, 1]
-    * naive uses V_cov1 covariance (same regression)
-    scalar `se_naive_atet' = sqrt(`V_cov1'[1, 1] / `var_z1'[1, 1]^2 + `V_cov1'[2, 2] / `var_z1'[1, 2]^2 - 2 * `V_cov1'[1, 2] / (`var_z1'[1, 1] * `var_z1'[1, 2]))
-
-    matrix `beta' = J(1, 1, `beta_atet')
-    matrix `se_beta' = J(1, 1, `se_atet')
-    matrix `beta_naive' = J(1, 1, `beta_naive_atet')
-    matrix `se_beta_naive' = J(1, 1, `se_naive_atet')
 }
 
 * count sample sizes
@@ -347,18 +339,13 @@ program _xt2denoise_regcoef, rclass
     matrix `se' = J(1, `k', .)
     matrix `V' = J(`k', `k', .)
 
-    * check if this is ATET (k=2 with postvar) or event study
-    if (`k' == 2) {
+    * check if this is ATET (k=1 with postvar) or event study
+    if (`k' == 1) {
         * ATET: groupvar is postvar (0/1)
-        capture matrix `coef'[1, 1] = _b[0.`groupvar']
-        capture matrix `coef'[1, 2] = _b[1.`groupvar']
-        capture matrix `se'[1, 1] = _se[0.`groupvar']
-        capture matrix `se'[1, 2] = _se[1.`groupvar']
+        capture matrix `coef'[1, 1] = _b[1.`groupvar']
+        capture matrix `se'[1, 1] = _se[1.`groupvar']
         * extract full variance-covariance matrix
-        capture matrix `V'[1, 1] = e(V)[1, 1]
-        capture matrix `V'[1, 2] = e(V)[1, 2]
-        capture matrix `V'[2, 1] = e(V)[2, 1]
-        capture matrix `V'[2, 2] = e(V)[2, 2]
+        capture matrix `V'[1, 1] = `se'[1, 1]^2
     }
     else {
         * event study: groupvar is eventtime100
@@ -439,20 +426,17 @@ program _xt2denoise_regdiff, rclass
     matrix `V_full' = e(V)
 
     * coefficients are in order: level1#c.evert, level2#c.evert, ..., _cons
-    * for ATET (k=2): positions 1 (pre/0) and 2 (post/1)
-    * for event study: positions 1 to k (eventtime -pre to +post)
-    forvalues i = 1/`k' {
-        matrix `coef'[1, `i'] = `b_full'[1, `i']
-        matrix `se'[1, `i'] = sqrt(`V_full'[`i', `i'])
+    * for ATET (k=1): position 1 (post/1)
+    if (`k' == 1) {
+        matrix `coef'[1, 1] = `b_full'[1, 2]
+        matrix `se'[1, 1] = sqrt(`V_full'[2, 2 ])
+        matrix `V'[1, 1] = `V_full'[2, 2]
     }
-
-    * extract full variance-covariance matrix
-    forvalues i = 1/`k' {
-        forvalues j = 1/`k' {
-            matrix `V'[`i', `j'] = `V_full'[`i', `j']
-        }
+    else {
+        matrix `coef' = `b_full'[1, 1..`k']
+        matrix `se' = vecdiag(`V_full'[1..`k', 1..`k'])
+        matrix `V' = `V_full'[1..`k', 1..`k']
     }
-
     return matrix coef = `coef'
     return matrix se = `se'
     return matrix V = `V'
