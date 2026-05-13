@@ -1,4 +1,4 @@
-*! version 0.9.2 13may2026
+*! version 0.9.3 13may2026
 program xt2denoise, eclass
 version 18.0
 
@@ -302,9 +302,21 @@ matrix `V_cov_naive' = J(`Kcov', `Kcov', 0)
 matrix `var_y1' = J(1, `Kcov', .)
 forvalues i = 1/`Kcov' {
     matrix `V_cov_naive'[`i', `i'] = `se_cov1'[1, `i']^2
-    summarize `dy2' if `touse' & `eventtime' == `i' - `pre' - 1 & `evert', meanonly
-    matrix `var_y1'[1, `i'] = r(mean)
 }
+if ("`baseline'" == "atet") {
+    * for ATET, we only have one period (post), so var_y1 is just the mean of dy2 in post-treatment for treated
+    summarize `dy2' if `touse' & `postvar' & `evert', meanonly
+    matrix `var_y1'[1, 1] = r(mean)
+}
+else {
+    * for event study, we have var_y1 for each event time, so we compute it separately for each period and group
+    forvalues t = -`pre'/`post' {
+        local col = `t' + `pre' + 1
+        summarize `dy2' if `touse' & `eventtime' == `t' & `evert', meanonly
+        matrix `var_y1'[1, `col'] = r(mean)
+    }
+}
+
 matrix colname `V_cov_naive' = `colnames'
 matrix rowname `V_cov_naive' = `colnames'
 matrix colname `var_y1' = `colnames'
