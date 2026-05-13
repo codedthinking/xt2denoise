@@ -1,4 +1,4 @@
-*! version 0.9.0 27apr2026
+*! version 0.9.1 13may2026
 program xt2denoise, eclass
 version 18.0
 
@@ -78,7 +78,7 @@ quietly egen `yg' = mean(cond(`eventtime' == -1, `y', .)) if `touse', by(`group'
 quietly generate `dy' = `y' - `yg' if `touse'
 
 ***** STEP 3: Remove event time X treatment group specific mean from dy
-tempvar dy_mean dy_demean
+tempvar dy_mean dy_demean dy_naive_mean dy_naive_demean
 
 quietly egen `dy_mean' = mean(`dy') if `touse', by(`eventtime' `evert')
 quietly egen `dy_naive_mean' = mean(`dy') if `touse', by(`eventtime')
